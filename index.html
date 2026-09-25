@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>複利效應教學與投票系統</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
+
+    <!-- App Navigation Header -->
+    <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="switchView('student')">
+                <i class="fa-solid fa-chart-line text-2xl text-yellow-300"></i>
+                <h1 class="text-xl font-bold tracking-tight">複利效應教學與投票系統</h1>
+            </div>
+            
+            <nav class="flex items-center space-x-2 sm:space-x-4">
+                <button id="nav-student" onclick="switchView('student')" class="px-3 py-2 rounded-lg text-sm font-medium bg-indigo-700 text-white hover:bg-indigo-800 transition">
+                    <i class="fa-solid fa-vote-yea mr-1"></i> 學生投票
+                </button>
+                <button id="nav-presentation" onclick="switchView('presentation')" class="px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-500 text-indigo-100 transition">
+                    <i class="fa-solid fa-desktop mr-1"></i> 簡報簡報 Mode
+                </button>
+                <button id="nav-admin" onclick="openAdminAuthModal()" class="px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-500 text-indigo-100 transition">
+                    <i class="fa-solid fa-user-shield mr-1"></i> 教師後台
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full">
+
+        <!-- ==================== VIEW 1: STUDENT MOBILE INTERFACE ==================== -->
+        <section id="view-student" class="space-y-6">
+            <!-- User Identification Banner -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-lg">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-bold text-slate-800" id="student-display-name">訪客學生</h2>
+                            <p class="text-xs text-slate-500" id="student-submit-count">修改次數：0 次</p>
+                        </div>
+                    </div>
+                    <button onclick="promptUserIdentity()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium underline text-left sm:text-right">
+                        更改姓名 / 座號
+                    </button>
+                </div>
+            </div>
+
+            <!-- Lock Notice Banner (When teacher locked) -->
+            <div id="student-lock-banner" class="hidden bg-amber-50 border-l-4 border-amber-500 p-4 rounded-xl shadow-sm">
+                <div class="flex items-center space-x-3">
+                    <i class="fa-solid fa-lock text-amber-600 text-xl"></i>
+                    <div>
+                        <h3 class="font-bold text-amber-800">投票已鎖定</h3>
+                        <p class="text-xs text-amber-700">老師已公布結果或關閉投票修改，請關注前方的簡報大螢幕！</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sticky Student Vote Tally Summary (Visible to Student) -->
+            <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-xs font-bold text-indigo-900 tracking-wider uppercase flex items-center">
+                        <i class="fa-solid fa-chart-simple mr-1.5 text-indigo-600"></i> 即時選擇概況 (複選總覽)
+                    </h3>
+                    <span id="student-live-voter-total" class="text-xs font-semibold bg-indigo-200 text-indigo-800 px-2 py-0.5 rounded-full">
+                        參與人數: 0
+                    </span>
+                </div>
+                
+                <div class="space-y-3 mt-3">
+                    <!-- Option 1 Summary -->
+                    <div>
+                        <div class="flex justify-between text-xs font-medium mb-1">
+                            <span class="text-slate-700">第一個：拿去存在銀行裡</span>
+                            <span class="text-slate-600 font-bold" id="student-summary-count-1">0 票 (0%)</span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                            <div id="student-summary-bar-1" class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div id="student-summary-names-1" class="flex flex-wrap gap-1 mt-1 text-[11px] text-slate-500"></div>
+                    </div>
+
+                    <!-- Option 2 Summary -->
+                    <div>
+                        <div class="flex justify-between text-xs font-medium mb-1">
+                            <span class="text-slate-700">第二個：把錢全部拿去買股票</span>
+                            <span class="text-slate-600 font-bold" id="student-summary-count-2">0 票 (0%)</span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                            <div id="student-summary-bar-2" class="bg-emerald-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div id="student-summary-names-2" class="flex flex-wrap gap-1 mt-1 text-[11px] text-slate-500"></div>
+                    </div>
+
+                    <!-- Option 3 Summary -->
+                    <div>
+                        <div class="flex justify-between text-xs font-medium mb-1">
+                            <span class="text-slate-700">第三個：週邊或商品</span>
+                            <span class="text-slate-600 font-bold" id="student-summary-count-3">0 票 (0%)</span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                            <div id="student-summary-bar-3" class="bg-amber-500 h-2 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div id="student-summary-names-3" class="flex flex-wrap gap-1 mt-1 text-[11px] text-slate-500"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Question Card -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+                <div>
+                    <span class="text-xs font-semibold px-2.5 py-1 bg-indigo-100 text-indigo-700 rounded-full">複選問卷</span>
+                    <h2 class="text-xl font-bold text-slate-900 mt-2">請選擇把你的錢做什麼事情？</h2>
+                    <p class="text-xs text-slate-500 mt-1">在上課過程中，你可以持續修改並重新提交你的選擇。</p>
+                </div>
+
+                <!-- Checkbox Options -->
+                <form id="vote-form" class="space-y-3 pt-2">
+                    <label class="option-card flex items-center p-4 rounded-xl border-2 border-slate-200 hover:border-indigo-300 cursor-pointer transition bg-slate-50/50">
+                        <input type="checkbox" name="vote-option" value="1" class="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                        <span class="ml-3 font-semibold text-slate-800 text-base">第一個：拿去存在銀行裡</span>
+                    </label>
+
+                    <label class="option-card flex items-center p-4 rounded-xl border-2 border-slate-200 hover:border-indigo-300 cursor-pointer transition bg-slate-50/50">
+                        <input type="checkbox" name="vote-option" value="2" class="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                        <span class="ml-3 font-semibold text-slate-800 text-base">第二個：把錢全部拿去買股票</span>
+                    </label>
+
+                    <label class="option-card flex items-center p-4 rounded-xl border-2 border-slate-200 hover:border-indigo-300 cursor-pointer transition bg-slate-50/50">
+                        <input type="checkbox" name="vote-option" value="3" class="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                        <span class="ml-3 font-semibold text-slate-800 text-base">第三個：週邊或商品</span>
+                    </label>
+
+                    <button type="submit" id="btn-submit-vote" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2 mt-4">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>送出 / 更新我的選擇</span>
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- ==================== VIEW 2: PRESENTATION (CLASSROOM SCREEN) ==================== -->
+        <section id="view-presentation" class="hidden space-y-6">
+            <!-- STICKY TOP DASHBOARD: Live Polls -->
+            <div class="sticky top-20 z-40 bg-white/95 backdrop-blur shadow-xl rounded-2xl p-6 border border-slate-200">
+                <div class="flex items-center justify-between border-b pb-3 mb-4">
+                    <div class="flex items-center space-x-2">
+                        <span class="animate-pulse w-3 h-3 bg-emerald-500 rounded-full"></span>
+                        <h2 class="text-lg font-bold text-slate-900">課堂即時投票戰況 (大螢幕連線中)</h2>
+                    </div>
+                    <div class="text-sm font-semibold text-slate-600">
+                        已投票總人數: <span id="pres-voter-count" class="text-indigo-600 font-bold text-lg">0</span> 人
+                    </div>
+                </div>
+
+                <!-- Live Poll Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <!-- Option 1 -->
+                    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-sm font-bold text-blue-900">第一個：拿去存在銀行裡</span>
+                                <span id="pres-opt1-badge" class="px-2 py-0.5 bg-blue-200 text-blue-800 text-xs font-bold rounded-full">0 票</span>
+                            </div>
+                            <div class="w-full bg-blue-200 rounded-full h-3 mb-2">
+                                <div id="pres-opt1-bar" class="bg-blue-600 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 font-semibold mb-1">已選學生:</p>
+                            <div id="pres-opt1-names" class="flex flex-wrap gap-1 max-h-20 overflow-y-auto text-xs">
+                                <span class="text-slate-400 italic">尚無資料</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Option 2 -->
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-sm font-bold text-emerald-900">第二個：把錢全部拿去買股票</span>
+                                <span id="pres-opt2-badge" class="px-2 py-0.5 bg-emerald-200 text-emerald-800 text-xs font-bold rounded-full">0 票</span>
+                            </div>
+                            <div class="w-full bg-emerald-200 rounded-full h-3 mb-2">
+                                <div id="pres-opt2-bar" class="bg-emerald-600 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 font-semibold mb-1">已選學生:</p>
+                            <div id="pres-opt2-names" class="flex flex-wrap gap-1 max-h-20 overflow-y-auto text-xs">
+                                <span class="text-slate-400 italic">尚無資料</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Option 3 -->
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="text-sm font-bold text-amber-900">第三個：週邊或商品</span>
+                                <span id="pres-opt3-badge" class="px-2 py-0.5 bg-amber-200 text-amber-800 text-xs font-bold rounded-full">0 票</span>
+                            </div>
+                            <div class="w-full bg-amber-200 rounded-full h-3 mb-2">
+                                <div id="pres-opt3-bar" class="bg-amber-600 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 font-semibold mb-1">已選學生:</p>
+                            <div id="pres-opt3-names" class="flex flex-wrap gap-1 max-h-20 overflow-y-auto text-xs">
+                                <span class="text-slate-400 italic">尚無資料</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Winner Revealer Section (Hidden until Lock/Publish) -->
+            <div id="pres-winner-section" class="hidden bg-gradient-to-r from-amber-500 via-purple-600 to-indigo-600 text-white p-8 rounded-2xl shadow-2xl space-y-4">
+                <div class="flex items-center space-x-3">
+                    <i class="fa-solid fa-trophy text-4xl text-yellow-300 animate-bounce"></i>
+                    <div>
+                        <h2 class="text-2xl font-black tracking-wide">最終複利長勝王者榜公布</h2>
+                        <p class="text-sm opacity-90">勝出條件：在整個學習與歷程中，始終持續保持選擇「第二項：股票投資」！</p>
+                    </div>
+                </div>
+
+                <div class="bg-white/10 backdrop-blur-md p-5 rounded-xl border border-white/20">
+                    <h3 class="text-lg font-bold text-yellow-200 mb-2">🏆 複利終極獲勝名單：</h3>
+                    <div id="pres-winner-list" class="flex flex-wrap gap-2">
+                        <!-- Winners injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- SCROLLABLE LESSON MATERIAL CONTENT AREA -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm space-y-10">
+                <!-- Custom Upload Bar for Teacher Slides -->
+                <div class="bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl p-6 text-center">
+                    <i class="fa-solid fa-cloud-arrow-up text-3xl text-indigo-500 mb-2"></i>
+                    <h3 class="font-bold text-slate-700">上傳課堂簡報截圖 / PPT 圖片</h3>
+                    <p class="text-xs text-slate-500 mt-1 mb-3">支援多圖上傳，自動轉換為大螢幕簡報播放投影片。</p>
+                    <input type="file" id="ppt-upload-input" multiple accept="image/*" class="hidden" onchange="handleSlideUpload(event)">
+                    <button onclick="document.getElementById('ppt-upload-input').click()" class="px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition">
+                        選擇圖片檔案上傳
+                    </button>
+                </div>
+
+                <!-- Slide Gallery / Preset Curriculum Content -->
+                <div id="slide-container" class="space-y-12">
+                    <!-- Default Curriculum Cards -->
+                    <article class="prose max-w-none border-b border-slate-100 pb-8">
+                        <span class="text-xs font-extrabold text-indigo-600 tracking-wider uppercase">單元一</span>
+                        <h2 class="text-2xl font-bold text-slate-900 mt-1">什麼是「複利」？世界第 八 大奇蹟</h2>
+                        <p class="text-slate-600 text-base leading-relaxed">
+                            複利（Compound Interest）是指將每一期獲得的利息再併入本金中，繼續計算下一期的利息。簡單來說，就是「錢滾錢」。
+                        </p>
+                        <div class="bg-slate-900 text-emerald-400 p-4 rounded-xl font-mono text-sm">
+                            F = P × (1 + r)^n <br>
+                            <span class="text-slate-400 text-xs">// F: 最終資產, P: 本金, r: 年報酬率, n: 時間(年)</span>
+                        </div>
+                    </article>
+
+                    <article class="prose max-w-none border-b border-slate-100 pb-8">
+                        <span class="text-xs font-extrabold text-indigo-600 tracking-wider uppercase">單元二</span>
+                        <h2 class="text-2xl font-bold text-slate-900 mt-1">神奇的「七二法則」(Rule of 72)</h2>
+                        <p class="text-slate-600 text-base leading-relaxed">
+                            想要快速估算資產翻倍需要多少年？只需將 72 除以預期年報酬率：
+                        </p>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 my-4">
+                            <div class="p-4 bg-blue-50 rounded-xl border border-blue-100 text-center">
+                                <div class="text-xs text-blue-600 font-bold">銀行定存 (約 1.5%)</div>
+                                <div class="text-xl font-extrabold text-blue-900 mt-1">72 ÷ 1.5 = 48 年</div>
+                                <div class="text-xs text-slate-500 mt-1">資產翻倍需要 48 年</div>
+                            </div>
+                            <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-100 text-center">
+                                <div class="text-xs text-emerald-600 font-bold">股市大盤 (約 8%)</div>
+                                <div class="text-xl font-extrabold text-emerald-900 mt-1">72 ÷ 8 = 9 年</div>
+                                <div class="text-xs text-slate-500 mt-1">資產翻倍只需要 9 年！</div>
+                            </div>
+                            <div class="p-4 bg-amber-50 rounded-xl border border-amber-100 text-center">
+                                <div class="text-xs text-amber-600 font-bold">消費購物 (通膨 3%)</div>
+                                <div class="text-xl font-extrabold text-amber-900 mt-1">購買力減半 = 24 年</div>
+                                <div class="text-xs text-slate-500 mt-1">現金實質價值持續縮水</div>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="prose max-w-none border-b border-slate-100 pb-8">
+                        <span class="text-xs font-extrabold text-indigo-600 tracking-wider uppercase">單元三</span>
+                        <h2 class="text-2xl font-bold text-slate-900 mt-1">長期投資、定期定額與景氣循環</h2>
+                        <p class="text-slate-600 text-base leading-relaxed">
+                            市場會有高低起伏（景氣循環），但透過長期持有指數化大盤資產，配合「定期定額」平攤成本，就能降低單點高價買入的風險，穩定享受經濟成長的複利紅利。
+                        </p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== VIEW 3: TEACHER ADMIN CONTROL CENTER ==================== -->
+        <section id="view-admin" class="hidden space-y-6">
+            <!-- Admin Header Bar -->
+            <div class="bg-slate-900 text-white p-6 rounded-2xl shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <span class="text-xs uppercase font-extrabold text-indigo-400 tracking-widest">Teacher Management</span>
+                    <h2 class="text-2xl font-bold">教師後台控制中心</h2>
+                </div>
+                <!-- Action Control Buttons -->
+                <div class="flex flex-wrap gap-2">
+                    <button id="btn-toggle-lock" onclick="toggleLockState()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-lg shadow transition flex items-center space-x-1">
+                        <i class="fa-solid fa-lock"></i>
+                        <span id="lock-btn-text">公布結果 / 鎖定投票</span>
+                    </button>
+                    <button onclick="unlockVoting()" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm rounded-lg shadow transition flex items-center space-x-1">
+                        <i class="fa-solid fa-lock-open"></i>
+                        <span>重新開放投票</span>
+                    </button>
+                    <button onclick="resetAllData()" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm rounded-lg shadow transition flex items-center space-x-1">
+                        <i class="fa-solid fa-trash-arrow-up"></i>
+                        <span>開始新的一輪 (清空數據)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats Analytics Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-xs font-semibold text-slate-500 uppercase">總參與學生數</p>
+                    <p id="admin-stat-total" class="text-3xl font-extrabold text-slate-800 mt-2">0</p>
+                </div>
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-xs font-semibold text-slate-500 uppercase">曾修改過選擇人數</p>
+                    <p id="admin-stat-changed" class="text-3xl font-extrabold text-indigo-600 mt-2">0</p>
+                </div>
+                <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                    <p class="text-xs font-semibold text-slate-500 uppercase">堅持全選股票勝出者</p>
+                    <p id="admin-stat-winners" class="text-3xl font-extrabold text-emerald-600 mt-2">0</p>
+                </div>
+            </div>
+
+            <!-- Detailed Student Selection Audit Trail Table -->
+            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="p-5 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-800">學生個人選擇變化軌跡與勝負稽核</h3>
+                    <span class="text-xs text-slate-500">歷史紀錄即時同步中</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="bg-slate-100 text-xs uppercase text-slate-500">
+                            <tr>
+                                <th class="p-4">學生姓名 / 座號</th>
+                                <th class="p-4">修改次數</th>
+                                <th class="p-4">當前選擇選項</th>
+                                <th class="p-4">完整歷史歷程軌跡</th>
+                                <th class="p-4">勝負判定 (持續持股)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-audit-tbody" class="divide-y divide-slate-200">
+                            <tr>
+                                <td colspan="5" class="p-6 text-center text-slate-400">尚無學生登錄紀錄</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Password Management Section -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-md space-y-4">
+                <h3 class="font-bold text-slate-800 flex items-center">
+                    <i class="fa-solid fa-key text-indigo-600 mr-2"></i> 修改教師後台密碼
+                </h3>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">新教師密碼</label>
+                        <input type="password" id="input-new-pass" placeholder="請輸入新密碼" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    </div>
+                    <button onclick="changeAdminPassword()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg transition">
+                        更新儲存密碼
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer with Admin Access Gate -->
+    <footer class="bg-slate-100 border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+            <p>© 複利效應教學與投票系統 Compound Interest Educator</p>
+            <button onclick="openAdminAuthModal()" class="text-slate-400 hover:text-slate-600 text-[11px] underline">
+                教師後台
+            </button>
+        </div>
+    </footer>
+
+    <!-- Password Auth Modal for Admin Area -->
+    <div id="admin-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl space-y-4">
+            <div class="text-center">
+                <div class="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2 text-xl font-bold">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900">進入教師控制後台</h3>
+                <p class="text-xs text-slate-500 mt-1">請輸入教師權限密碼：</p>
+            </div>
+            <div>
+                <input type="password" id="admin-pass-input" placeholder="請輸入密碼" class="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-center text-base focus:ring-2 focus:ring-indigo-500 outline-none">
+                <p id="admin-pass-error" class="text-xs text-rose-500 mt-1 text-center hidden">密碼錯誤，請重新輸入</p>
+            </div>
+            <div class="flex space-x-2">
+                <button onclick="closeAdminAuthModal()" class="w-1/2 py-2.5 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition text-sm">取消</button>
+                <button onclick="verifyAdminPassword()" class="w-1/2 py-2.5 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition text-sm">驗證進入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application JavaScript Dynamic Engine -->
+    <script>
+        // State Initialization
+        const STORAGE_KEY_VOTES = 'compound_teaching_votes_db';
+        const STORAGE_KEY_LOCK = 'compound_teaching_is_locked';
+        const STORAGE_KEY_PASS = 'compound_teaching_admin_pass';
+        const DEFAULT_PASS = 'compound2026';
+
+        let activeView = 'student';
+        let currentStudentId = '';
+        let broadcastChannel;
+
+        // Broadcast Sync Event Registration
+        if ('BroadcastChannel' in window) {
+            broadcastChannel = new BroadcastChannel('compound_voting_channel');
+            broadcastChannel.onmessage = (event) => {
+                if (event.data && event.data.type === 'SYNC') {
+                    refreshAllViews();
+                }
+            };
+        }
+
+        window.addEventListener('storage', () => {
+            refreshAllViews();
+        });
+
+        // App Initializer
+        document.addEventListener('DOMContentLoaded', () => {
+            initStudentSession();
+            refreshAllViews();
+
+            // Bind Form Submit
+            document.getElementById('vote-form').addEventListener('submit', handleVoteSubmission);
+        });
+
+        function getVotesDB() {
+            return JSON.parse(localStorage.getItem(STORAGE_KEY_VOTES) || '{}');
+        }
+
+        function setVotesDB(db) {
+            localStorage.setItem(STORAGE_KEY_VOTES, JSON.stringify(db));
+            notifySync();
+        }
+
+        function isVotingLocked() {
+            return localStorage.getItem(STORAGE_KEY_LOCK) === 'true';
+        }
+
+        function getAdminPassword() {
+            return localStorage.getItem(STORAGE_KEY_PASS) || DEFAULT_PASS;
+        }
+
+        function notifySync() {
+            if (broadcastChannel) {
+                broadcastChannel.postMessage({ type: 'SYNC' });
+            }
+        }
+
+        // Student Session Management
+        function initStudentSession() {
+            let savedId = localStorage.getItem('compound_student_id');
+            if (!savedId) {
+                savedId = '學生_' + Math.floor(1000 + Math.random() * 9000);
+                localStorage.setItem('compound_student_id', savedId);
+            }
+            currentStudentId = savedId;
+            document.getElementById('student-display-name').innerText = currentStudentId;
+        }
+
+        function promptUserIdentity() {
+            const name = prompt("請輸入您的姓名或座號：", currentStudentId);
+            if (name && name.trim()) {
+                currentStudentId = name.trim();
+                localStorage.setItem('compound_student_id', currentStudentId);
+                document.getElementById('student-display-name').innerText = currentStudentId;
+                refreshAllViews();
+            }
+        }
+
+        // View Router
+        function switchView(viewName) {
+            activeView = viewName;
+            document.getElementById('view-student').classList.add('hidden');
+            document.getElementById('view-presentation').classList.add('hidden');
+            document.getElementById('view-admin').classList.add('hidden');
+
+            document.getElementById('nav-student').className = "px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-500 text-indigo-100 transition";
+            document.getElementById('nav-presentation').className = "px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-500 text-indigo-100 transition";
+            document.getElementById('nav-admin').className = "px-3 py-2 rounded-lg text-sm font-medium hover:bg-indigo-500 text-indigo-100 transition";
+
+            if (viewName === 'student') {
+                document.getElementById('view-student').classList.remove('hidden');
+                document.getElementById('nav-student').className = "px-3 py-2 rounded-lg text-sm font-medium bg-indigo-700 text-white hover:bg-indigo-800 transition";
+            } else if (viewName === 'presentation') {
+                document.getElementById('view-presentation').classList.remove('hidden');
+                document.getElementById('nav-presentation').className = "px-3 py-2 rounded-lg text-sm font-medium bg-indigo-700 text-white hover:bg-indigo-800 transition";
+            } else if (viewName === 'admin') {
+                document.getElementById('view-admin').classList.remove('hidden');
+                document.getElementById('nav-admin').className = "px-3 py-2 rounded-lg text-sm font-medium bg-indigo-700 text-white hover:bg-indigo-800 transition";
+            }
+            refreshAllViews();
+        }
+
+        // Vote Submission Handler
+        function handleVoteSubmission(e) {
+            e.preventDefault();
+            if (isVotingLocked()) {
+                alert("投票目前已鎖定，無法更改選項！");
+                return;
+            }
+
+            const checkboxes = document.querySelectorAll('input[name="vote-option"]:checked');
+            const selectedOptions = Array.from(checkboxes).map(cb => cb.value);
+
+            if (selectedOptions.length === 0) {
+                alert("請至少選擇一個選項！");
+                return;
+            }
+
+            const db = getVotesDB();
+            if (!db[currentStudentId]) {
+                db[currentStudentId] = {
+                    current: selectedOptions,
+                    history: [selectedOptions],
+                    updatedAt: new Date().toISOString()
+                };
+            } else {
+                db[currentStudentId].current = selectedOptions;
+                db[currentStudentId].history.push(selectedOptions);
+                db[currentStudentId].updatedAt = new Date().toISOString();
+            }
+
+            setVotesDB(db);
+            alert("選擇已成功儲存與更新！");
+            refreshAllViews();
+        }
+
+        // UI Refresh Render Function
+        function refreshAllViews() {
+            const db = getVotesDB();
+            const locked = isVotingLocked();
+            const totalStudents = Object.keys(db).length;
+
+            // 1. Lock States update
+            const lockBanner = document.getElementById('student-lock-banner');
+            const submitBtn = document.getElementById('btn-submit-vote');
+            if (locked) {
+                lockBanner.classList.remove('hidden');
+                submitBtn.disabled = true;
+                submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                lockBanner.classList.add('hidden');
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+
+            // Sync Admin Lock Button Text
+            const lockBtnText = document.getElementById('lock-btn-text');
+            if (lockBtnText) {
+                lockBtnText.innerText = locked ? "開放投票中" : "公布結果 / 鎖定投票";
+            }
+
+            // Student Self Record Update
+            if (db[currentStudentId]) {
+                const myRecord = db[currentStudentId];
+                document.getElementById('student-submit-count').innerText = `修改次數：${myRecord.history.length - 1} 次`;
+                
+                // Sync Checkboxes with current state
+                const checkboxes = document.querySelectorAll('input[name="vote-option"]');
+                checkboxes.forEach(cb => {
+                    cb.checked = myRecord.current.includes(cb.value);
+                });
+            }
+
+            // Calculate Option Statistics
+            let opt1Count = 0, opt2Count = 0, opt3Count = 0;
+            let opt1Names = [], opt2Names = [], opt3Names = [];
+            let winnerNames = [];
+            let changedCount = 0;
+
+            Object.keys(db).forEach(studentName => {
+                const rec = db[studentName];
+                const cur = rec.current || [];
+                
+                if (cur.includes('1')) { opt1Count++; opt1Names.push(studentName); }
+                if (cur.includes('2')) { opt2Count++; opt2Names.push(studentName); }
+                if (cur.includes('3')) { opt3Count++; opt3Names.push(studentName); }
+
+                if (rec.history && rec.history.length > 1) {
+                    changedCount++;
+                }
+
+                // Check Win Condition: Always includes Option 2 in ALL submissions
+                const alwaysSelectedStock = rec.history.every(choices => choices.includes('2'));
+                if (alwaysSelectedStock) {
+                    winnerNames.push(studentName);
+                }
+            });
+
+            // Calculate Percentages (Relative to Total Student Count)
+            const calcPct = (count) => totalStudents === 0 ? 0 : Math.round((count / totalStudents) * 100);
+
+            // Update Student Summary Bars
+            document.getElementById('student-live-voter-total').innerText = `參與人數: ${totalStudents}`;
+            document.getElementById('student-summary-count-1').innerText = `${opt1Count} 票 (${calcPct(opt1Count)}%)`;
+            document.getElementById('student-summary-bar-1').style.width = `${calcPct(opt1Count)}%`;
+            document.getElementById('student-summary-names-1').innerHTML = opt1Names.map(n => `<span class="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded">${n}</span>`).join(' ');
+
+            document.getElementById('student-summary-count-2').innerText = `${opt2Count} 票 (${calcPct(opt2Count)}%)`;
+            document.getElementById('student-summary-bar-2').style.width = `${calcPct(opt2Count)}%`;
+            document.getElementById('student-summary-names-2').innerHTML = opt2Names.map(n => `<span class="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">${n}</span>`).join(' ');
+
+            document.getElementById('student-summary-count-3').innerText = `${opt3Count} 票 (${calcPct(opt3Count)}%)`;
+            document.getElementById('student-summary-bar-3').style.width = `${calcPct(opt3Count)}%`;
+            document.getElementById('student-summary-names-3').innerHTML = opt3Names.map(n => `<span class="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">${n}</span>`).join(' ');
+
+            // Update Presentation Big Screen Mode
+            document.getElementById('pres-voter-count').innerText = totalStudents;
+            document.getElementById('pres-opt1-badge').innerText = `${opt1Count} 票 (${calcPct(opt1Count)}%)`;
+            document.getElementById('pres-opt1-bar').style.width = `${calcPct(opt1Count)}%`;
+            document.getElementById('pres-opt1-names').innerHTML = opt1Names.length ? opt1Names.map(n => `<span class="bg-blue-200 text-blue-900 px-2 py-0.5 rounded font-semibold">${n}</span>`).join('') : '<span class="text-slate-400 italic">尚無數據</span>';
+
+            document.getElementById('pres-opt2-badge').innerText = `${opt2Count} 票 (${calcPct(opt2Count)}%)`;
+            document.getElementById('pres-opt2-bar').style.width = `${calcPct(opt2Count)}%`;
+            document.getElementById('pres-opt2-names').innerHTML = opt2Names.length ? opt2Names.map(n => `<span class="bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-semibold">${n}</span>`).join('') : '<span class="text-slate-400 italic">尚無數據</span>';
+
+            document.getElementById('pres-opt3-badge').innerText = `${opt3Count} 票 (${calcPct(opt3Count)}%)`;
+            document.getElementById('pres-opt3-bar').style.width = `${calcPct(opt3Count)}%`;
+            document.getElementById('pres-opt3-names').innerHTML = opt3Names.length ? opt3Names.map(n => `<span class="bg-amber-200 text-amber-900 px-2 py-0.5 rounded font-semibold">${n}</span>`).join('') : '<span class="text-slate-400 italic">尚無數據</span>';
+
+            // Presentation Winner Section
+            const winnerSection = document.getElementById('pres-winner-section');
+            if (locked) {
+                winnerSection.classList.remove('hidden');
+                document.getElementById('pres-winner-list').innerHTML = winnerNames.length ? 
+                    winnerNames.map(w => `<span class="bg-yellow-400 text-slate-900 font-black px-3 py-1 rounded-lg text-lg shadow">${w}</span>`).join(' ') :
+                    '<span class="text-white/80 italic">沒有人在所有歷程中始終選擇股票。這展現了複利投資中「堅持」的困難與珍貴！</span>';
+            } else {
+                winnerSection.classList.add('hidden');
+            }
+
+            // Update Teacher Admin Analytics & Audit Table
+            document.getElementById('admin-stat-total').innerText = totalStudents;
+            document.getElementById('admin-stat-changed').innerText = changedCount;
+            document.getElementById('admin-stat-winners').innerText = winnerNames.length;
+
+            const tbody = document.getElementById('admin-audit-tbody');
+            if (totalStudents === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-6 text-center text-slate-400">尚無學生登錄紀錄</td></tr>`;
+            } else {
+                let html = '';
+                Object.keys(db).forEach(sName => {
+                    const rec = db[sName];
+                    const isWinner = winnerNames.includes(sName);
+                    
+                    const formatChoice = (arr) => arr.map(a => a === '1' ? '銀行' : (a === '2' ? '股票' : '週邊')).join('+');
+                    const historyText = rec.history.map((h, idx) => `<span class="inline-block bg-slate-100 px-1.5 py-0.5 rounded text-xs mr-1 mb-1">#${idx+1}: ${formatChoice(h)}</span>`).join(' → ');
+
+                    html += `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="p-4 font-bold text-slate-800">${sName}</td>
+                            <td class="p-4 text-slate-600">${rec.history.length - 1} 次</td>
+                            <td class="p-4 font-medium">${formatChoice(rec.current)}</td>
+                            <td class="p-4">${historyText}</td>
+                            <td class="p-4">
+                                ${isWinner ? 
+                                    `<span class="px-2 py-1 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-full"><i class="fa-solid fa-trophy text-yellow-600 mr-1"></i> 勝出 (持續持股)</span>` : 
+                                    `<span class="px-2 py-1 bg-slate-100 text-slate-500 text-xs rounded-full">未持續選股票</span>`
+                                }
+                            </td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+            }
+        }
+
+        // Admin Auth Modal Handling
+        function openAdminAuthModal() {
+            document.getElementById('admin-pass-input').value = '';
+            document.getElementById('admin-pass-error').classList.add('hidden');
+            document.getElementById('admin-modal').classList.remove('hidden');
+        }
+
+        function closeAdminAuthModal() {
+            document.getElementById('admin-modal').classList.add('hidden');
+        }
+
+        function verifyAdminPassword() {
+            const inputPass = document.getElementById('admin-pass-input').value;
+            if (inputPass === getAdminPassword()) {
+                closeAdminAuthModal();
+                switchView('admin');
+            } else {
+                document.getElementById('admin-pass-error').classList.remove('hidden');
+            }
+        }
+
+        function changeAdminPassword() {
+            const newPass = document.getElementById('input-new-pass').value;
+            if (!newPass || newPass.trim().length < 4) {
+                alert("密碼長度請至少設定 4 位數！");
+                return;
+            }
+            localStorage.setItem(STORAGE_KEY_PASS, newPass.trim());
+            alert("教師密碼修改成功！");
+            document.getElementById('input-new-pass').value = '';
+        }
+
+        // Teacher Action Controls
+        function toggleLockState() {
+            const currentLocked = isVotingLocked();
+            localStorage.setItem(STORAGE_KEY_LOCK, currentLocked ? 'false' : 'true');
+            notifySync();
+            refreshAllViews();
+        }
+
+        function unlockVoting() {
+            localStorage.setItem(STORAGE_KEY_LOCK, 'false');
+            notifySync();
+            refreshAllViews();
+            alert("已重新開放學生修改投票！");
+        }
+
+        function resetAllData() {
+            if (confirm("確定要開始新的一輪嗎？這將會清空目前所有學生的投票紀錄與歷史軌跡！")) {
+                localStorage.removeItem(STORAGE_KEY_VOTES);
+                localStorage.setItem(STORAGE_KEY_LOCK, 'false');
+                notifySync();
+                refreshAllViews();
+                alert("已重置資料，開始新的一輪！");
+            }
+        }
+
+        // Slide Image Upload Processor
+        function handleSlideUpload(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            const container = document.getElementById('slide-container');
+            container.innerHTML = ''; // Clear default slides
+
+            Array.from(files).forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const card = document.createElement('div');
+                    card.className = "bg-slate-900 rounded-2xl overflow-hidden shadow-lg border border-slate-800 p-2 space-y-2";
+                    card.innerHTML = `
+                        <div class="flex justify-between items-center text-white px-3 py-1">
+                            <span class="text-xs font-bold text-indigo-400">投影片 ${index + 1}</span>
+                            <span class="text-xs text-slate-400">${file.name}</span>
+                        </div>
+                        <img src="${e.target.result}" class="w-full object-contain rounded-xl max-h-[600px] mx-auto" />
+                    `;
+                    container.appendChild(card);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+    </script>
+</body>
+</html>
